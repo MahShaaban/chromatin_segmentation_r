@@ -1,0 +1,550 @@
+---
+title: "Chromatin Segmentation Analysis in R"
+subtitle: "The `segmenter` Package"
+author: "Mahmoud Ahmed"
+date: "August 6, 2021" 
+output: ioslides_presentation
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+<style>
+.forceBreak { -webkit-column-break-after: always; break-after: column; }
+</style>
+
+# Overview
+
+## Overview
+
+- A brief introduction of segmentation analysis and *ChromHMM*
+- Apply the analysis to a test dataset and explore the output
+- Interpret the output of the segmentation using functions from `segmenter`
+
+# Background
+
+## Hidden Markov Models (HMM) {.columns-2}
+
+- A system (process) with unobservable or hidden states can be modeled with a dependent observable process.
+- The chromatin configurations are the hidden states modeled using histone markers that are associated with these configurations.
+
+<p class="forceBreak"></p>
+
+![Figure 1. Probabilistic parameters of a hidden Markov model. X — states, Y — possible observations, a — state transition probabilities and b — output. (Wikipedia)](https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/HiddenMarkovModel.svg/300px-HiddenMarkovModel.svg.png)
+
+## ChromHMM
+
+- *ChromHmm* is a Java program to learn chromatin states from multiple sets of histone markers ChIP-seq data
+- States are modeled as the combination of markers on the different regions of the genome. 
+- A multi-variate hidden Markov model is used to model the presence or absence of the markers.
+- The combination of histone markers at a given location is interpreted as a biological state.
+- Ref: [Ernst, J., Kellis, M. Chromatin-state discovery and genome annotation with ChromHMM. Nat Protoc 12, 2478–2492 (2017).](https://doi.org/10.1038/nprot.2017.124)
+
+## This package!
+
+The goal of the `segmenter` package is to
+
+- Call *ChromHMM* using R syntax
+- Capture the output in R objects
+- Interact with the model output for the purposes of summarizing or visualizing
+
+# Getting Started
+
+## Installation
+
+The package can be installed from Bioconductor using `BiocManager` or from
+GitHub using `remotes`
+
+```{r install, eval=FALSE}
+# install from bioconductor
+BiocManager::install('segmenter')
+
+# install from github
+remotes::install_github('MahShaaban/segmenter@devel')
+```
+
+## Example code
+
+```{r example_code, eval=FALSE}
+# run command
+obj <- learn_model(
+    inputdir = <input binarized files>,
+    coordsdir = <genomic coordinates of features>,
+    anchorsdir = <genomic location of TSS>,
+    chromsizefile = <chromosome lengths>,
+    numstates = <the number of desired states>,
+    assembly = <the genome assembly>,
+    cells = <names of the biological samples>,
+    annotation = <name of the reference genome type>,
+    binsize = <the size of bins>
+)
+```
+
+# Using `segmenter`
+
+## Inputs
+
+*ChromHMM* requires two types of input files. Those are
+
+- Genomic annotation files
+    - Coordinates: the start and end location of genomic features to calculate
+    enrichment
+    - Anchors: the transcription start and end sites
+    - Chromosome size: the length of each chromosome
+- Binarized signal files from the ChIP-seq data
+
+---
+
+### Genomic annotation files {.smaller}
+
+```{r genomic_annotations}
+# coordinates
+coordsdir <- 'hg38_coords'
+list.files(coordsdir)
+
+# anchors
+anchorsdir <- 'hg38_anchors'
+list.files(anchorsdir)
+
+# chromosomes' sizes
+chromsizefile <- 'hg38_chromsizes.txt'
+read.delim(chromsizefile, header = FALSE, nrows = 2)
+```
+
+---
+
+### Binarized signal files from the ChIP-seq data
+
+- The binarized signal files are text files, often one for each chromosome
+- Data is divided into bins of a given size (rows) and have binary values 1 (> threshold) or 0 for each histone markers (columns)
+- From bam `binarize_bam` or bed `binarize_bed`
+
+## {.smaller}
+
+```{r cellmarkfile}
+# a table to assign marker and cell names to the bam files
+cell_marks <- 'cell_mark_file.tsv'
+read.delim(cell_marks, header = FALSE, nrows = 3)
+```
+
+```{r eval=FALSE}
+# run command
+binarize_bam('bam/',
+             chromsizefile = chromsizefile,
+             cell_marks = cell_marks,
+             outputdir = 'bins_200')
+```
+
+```{r binaries}
+# show output files
+example_binaries <- list.files('bins_200', full.names = TRUE)[1]
+read.delim(example_binaries, nrows = 2, skip = 1)
+```
+
+## Model Learning
+
+`learn_model` wraps the the Java module that learns a chromatin segmentation model of a given number of states.
+
+```{r load_data, include=FALSE, cache=TRUE}
+# load library
+library(segmenter)
+
+# load all models
+objs <- readRDS('models.rds')
+
+# extract model with 10 states
+obj <- objs$`10`
+```
+
+```{r run_command, eval=FALSE}
+# load library
+library(segmenter)
+
+# run the main command
+obj <- learn_model(
+    inputdir = 'bins_200',
+    outputdir = 'models/model_10',
+    anchorsdir = 'hg38_anchors/',
+    coordsdir = 'hg38_coords/',
+    chromsizefile = 'hg38_chromsizes.txt',
+    numstates = 10,
+    cells = c('GM12878', 'H1', 'HepG2', 'IMR-90', 'K562'),
+    assembly = 'hg38',
+    annotation = 'RefSeq',
+    binsize = 200
+)
+```
+
+## Output
+
+```{r class}
+# show the object
+class(obj)
+```
+
+- `model`: the initial and final parameters
+- `emission`: the probabilities of the mark in a given state
+- `transition`: the probabilities of the states transitions
+- `overlap`: the enrichment of the states at genomic features
+- `TSS`: the enrichment of the states around the TSS
+- `TES`: the enrichment of the states around the TES
+- `segment`: the assignment of states to the bin
+
+---
+
+### Accessors
+
+An accessor function with the same of every slot access its contents.
+For example, to access the emission probabilities, call `emission`
+
+```{r emission, eval=FALSE}
+# access object slots
+emission(obj)
+```
+
+Some accessors have more arguments to subset the object.
+For example, the `segment` method take a `cell` name to return only the segments in the corresponding cell.
+
+```{r subset, eval=FALSE}
+# subset the segment slot
+segment(obj, cell = 'K562')
+```
+
+---
+
+### Methods
+
+```{r load_segmenter, include=FALSE}
+library(segmenter)
+```
+
+```{r show}
+# show the object
+show(obj)
+```
+
+# Interpreting model parameters
+
+## Emission and transition
+
+- Emission is the frequency of a particular histone mark in a given chromatin state.
+- Transition is the frequency by which a state (rows) transitions to another (column).
+- These probabilities capture the spatial relationships between the markers (emission) and the states (transition).
+
+```{r emission_transition, eval=FALSE}
+# access object slots
+emission(obj)
+transition(obj)
+```
+
+---
+
+- The `plot_heatmap` takes a `segmentation` object and visualize the slot in `type`. By default, this is `emission`.
+- The output is a `Heatmap` object from the `ComplexHeatmap` package. These objects are customized to produce diverse informative figures.
+
+```{r plots, eval=FALSE}
+# emission and transition plots
+plot_heatmap(obj,
+             row_labels = paste0('S', 1:10),
+             name = 'Emission')
+
+plot_heatmap(obj,
+             type = 'transition',
+             row_labels = paste0('S', 1:10),
+             column_labels = paste0('S', 1:10),
+             name = 'Transition')
+```
+---
+```{r heatmaps, echo=FALSE,fig.align='center',fig.cap="Emission and Transition"}
+# show heatmaps of emission and transition
+h1 <- plot_heatmap(obj,
+             row_labels = paste0('S', 1:10),
+             name = 'Emission')
+
+h2 <- plot_heatmap(obj,
+             type = 'transition',
+             row_labels = paste0('S', 1:10),
+             column_labels = paste0('S', 1:10),
+             name = 'Transition')
+h1 + h2
+```
+
+## Enrichment
+
+- The `overlap` slot contains the fold enrichment of each state in the genomic coordinates.
+- Calculated by first dividing the number of bases in a state and an annotation and the number of bases in an annotation and in the genome.
+
+```{r overlap, eval=FALSE}
+# overlap enrichment
+plot_heatmap(
+    obj,
+    type = 'overlap',
+    column_labels = c('Genome', 'CpG', 'Exon', 'Gene',
+                      'TES', 'TSS', 'TSS2kb')
+) 
+```
+---
+```{r overlap_plot, echo=FALSE,fig.align='center',fig.cap="Overlap Enrichment"}
+# overlap enrichment
+plot_heatmap(
+    obj,
+    type = 'overlap',
+    column_labels = c('Genome', 'CpG', 'Exon', 'Gene',
+                      'TES', 'TSS', 'TSS2kb')
+) 
+```
+
+## Segments
+
+- `segment` contains the state assingment
+- For each cell/condition, a `GRanges` object with the chromosome name, start and end sites in the ranges part of the object and the name of the state in a metadata columns.
+
+```{r segment, eval=FALSE}
+# get segments of all cells
+segment(obj)
+
+# get segments of GM12878
+segment(obj, 'GM12878')
+```
+---
+```{r show_segment}
+# get segments
+segment(obj, 'GM12878')
+```
+---
+
+- To visualize these segments, we can take advantage of Bioconductor annotation and visualization tools.
+- As an example, we extracted the genomic coordinates of the gene 'ACAT1' on
+chromosome 11 and resized it to 10kb around the transcription start site.
+- We then used `Gviz`'s `AnnotationTrack` to render the ranges as tracks grouped by
+the `state` column in the `GRanges` object for each of the cell lines.
+
+```{r annotations, cache=TRUE}
+# load txdb pacakge
+library(TxDb.Hsapiens.UCSC.hg18.knownGene)
+
+# gene gene coordinates
+txdb <- TxDb.Hsapiens.UCSC.hg18.knownGene
+gen <- genes(txdb, filter = list(gene_id = 38))
+
+# extend genomic region
+prom <- promoters(gen, upstream = 10000, downstream = 10000)
+```
+---
+```{r make_tracks}
+# load gviz
+library(Gviz)
+library(GenomicRanges)
+
+# annotation track
+tracks <- lapply(segment(obj), function(x) {
+    ## subset segments to the promoter region
+    seg <- subsetByOverlaps(x, prom)
+    
+    ## make annotation track
+    AnnotationTrack(seg,
+                    group = seg$state,
+                    name = names(x))
+})
+```
+
+---
+```{r plot_track, fig.align='center',fig.cap="Segmentation track"}
+# plot the track
+plotTracks(tracks$GM12878)
+```
+---
+
+Other tracks can be added to the plot to make it more informative. Here, we used
+
+- `IdeogramTrack` to show a graphic representation of chromosome 11
+- `GenomeAxisTrack` to show a scale of the exact location on the chromosome
+- `GeneRegionTrack` to show the exon, intron and transcripts of the target gene
+
+---
+
+Those can be put together in one plot using `plotTracks`
+
+```{r other_tracks, cache=TRUE}
+# ideogram track
+itrack <- IdeogramTrack(genome = 'hg38', chromosome = 11)
+
+# genome axis track
+gtrack <- GenomeAxisTrack()
+
+# gene region track
+data("geneModels")
+grtrack <- GeneRegionTrack(geneModels,
+                           genom = 'hg38',
+                           chromosome = 11,
+                           name = 'ACAT1')
+```
+---
+
+```{r plot_all, eval=FALSE}
+# put all tracks together
+plotTracks(
+    list(
+        itrack,
+        grtrack,
+        tracks$GM12878, tracks$H1
+    ),
+    from = min(start(prom)),
+    to = max(end(gen)),
+    groupAnnotation = 'group'
+)
+```
+---
+```{r tracks, echo=FALSE, fig.align='center', fig.width=4, fig.cap='Full tracks'}
+# put all tracks together
+plotTracks(
+    list(
+        itrack,
+        grtrack,
+        tracks$GM12878, tracks$H1
+    ),
+    from = min(start(prom)),
+    to = max(end(gen)),
+    groupAnnotation = 'group'
+)
+```
+
+---
+
+- Moreover, we can summarize the segmentation output in different ways to either show how the combination of chromatin markers are arranged or to compare different cells and conditions.
+- One simple summary, is to count the occurrence of states across the genome. `get_frequency` does that and returns the output in tabular or graphic formats.
+
+```{r frequency}
+# get segment frequency
+freq <- get_frequency(segment(obj), tidy = TRUE)
+head(freq)
+```
+
+---
+
+The frequency of the states in each cell can also be normalized by the total
+number of states.
+
+```{r frequency_plots, eval=FALSE}
+# frequency plots
+par(mfrow=c(1,2))
+get_frequency(segment(obj),
+              plot = TRUE,
+              ylab = 'State Fraction')
+
+get_frequency(segment(obj),
+              normalize = TRUE,
+              plot = TRUE,
+              ylab = 'Normalized State Fraction')
+```
+---
+```{r freq_plots, echo=FALSE, fig.align='center',fig.cap="State frequency"}
+# frequency plots
+par(mfrow=c(1,2))
+get_frequency(segment(obj),
+              plot = TRUE,
+              ylab = 'State Fraction')
+
+get_frequency(segment(obj),
+              normalize = TRUE,
+              plot = TRUE,
+              ylab = 'Normalized State Fraction')
+```
+
+# Comparing multiple models
+## Comparing multiple models
+
+- To choose the model that best fits the data, one can learn multiple models with different parameters.
+- In this example, we will be calling `learn_model` several times using `lapply` with the same inputs except the number of states (`numstates`).
+- The output would be a list of `segmentation` objects. `segmenter` contain functions to do basic comparison between the models.
+
+```{r loop, eval=FALSE}
+# relearn the models with 3 to 8 states
+objs <- lapply(5:15,
+    function(x) {
+      learn_model(..., numstates = x)
+    })
+```
+
+---
+
+- `compare_models` takes a list of `segmentation` objects and returns a vector with the same length.
+- The default is to compare the correlation between the emission parameters of the states.
+- Only the correlations the states with the maximum correlation with one of the states in the biggest model is returned.
+
+```{r correlations}
+# compare the models max correlation between the states
+compare_models(objs)
+```
+
+---
+
+- The other value to compare is the likelihood of the models which can be
+indicated through the `type` argument.
+
+```{r likelihood}
+# compare the models likelihood
+compare_models(objs, type = 'likelihood')
+```
+
+---
+
+Setting `plot = TRUE` returns a plot with data points corresponding to the
+models in the list.
+
+```{r comparison, eval=FALSE, fig.align='center', fig.cap="Comparing models"}
+# compare models plots
+par(mfrow=c(1,2))
+compare_models(objs,
+               plot = TRUE,
+               xlab = 'Model',
+               ylab = 'State Correlation')
+
+compare_models(objs, type = 'likelihood',
+               plot = TRUE,
+               xlab = 'Model',
+               ylab = 'Model Likelihood')
+```
+---
+```{r comparison_plots,echo=FALSE, fig.align='center', fig.cap="Comparing models"}
+# compare models plots
+par(mfrow=c(1,2))
+h1 <- compare_models(objs,
+               plot = TRUE,
+               xlab = 'Model',
+               ylab = 'State Correlation')
+
+h2 <- compare_models(objs, type = 'likelihood',
+               plot = TRUE,
+               xlab = 'Model',
+               ylab = 'Model Likelihood')
+h1 + h2
+```
+
+
+# Final remarks
+
+## Final remarks
+
+- Emissions and transition probabilities show the frequency with which histone marker or their combination occur across the genome (states). The meaning of these states depends on the biological significance of the markers. Some markers associate with particular regions or (e.g. promoters, enhancers, etc) or configurations (e.g. active, repressed, etc).
+- Fold-enrichment can be useful in defining the regions in which certain states occur or how they change in frequency between cells or conditions.
+- The segmentation of the genome on which these probabilities are defined can be used to visualize or integrate this information in other analyses such as over-representation or investigating the regulation of specific regions of interest.
+
+## {.columns-2}
+<p class="forceBreak"></p>
+
+### Thanks!
+
+Thanks to my collaborators and the bioconductor team for reviewing the pacakge.
+
+<p class="forceBreak"></p>
+
+### More!
+
+To learn more, check our github repo.
