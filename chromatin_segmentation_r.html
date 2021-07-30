@@ -574,8 +574,6 @@ GM12878 segmentation track
 
 </article></slide><slide class=""><hgroup><h2></h2></hgroup><article >
 
-<p>Those can be put together in one plot using <code>plotTracks</code></p>
-
 <pre class = 'prettyprint lang-r'># ideogram track
 itrack &lt;- IdeogramTrack(genome = &#39;hg38&#39;, chromosome = 11)
 
@@ -588,6 +586,8 @@ grtrack &lt;- BiomartGeneRegionTrack(genom = &#39;hg38&#39;,
                                   name = &#39;ACAT1&#39;)</pre>
 
 </article></slide><slide class=""><hgroup><h2></h2></hgroup><article >
+
+<p>Those can be put together in one plot using <code>plotTracks</code></p>
 
 <pre class = 'prettyprint lang-r'># put all tracks together
 plotTracks(
@@ -662,8 +662,8 @@ State frequency
 
 <ul>
 <li>To choose the model that best fits the data, one can learn multiple models with different parameters.</li>
-<li>In this example, we will be calling <code>learn_model</code> several times using <code>lapply</code> with the same inputs except the number of states (<code>numstates</code>).</li>
-<li>The output would be a list of <code>segmentation</code> objects. <code>segmenter</code> contain functions to do basic comparison between the models.</li>
+<li>In this example, we will be calling <code>learn_model</code> several times using <code>lapply</code> with the same inputs except for the number of states (<code>numstates</code>).</li>
+<li>The output would be a list of <code>segmentation</code> objects. <code>segmenter</code> contains functions to do a basic comparison between the models.</li>
 </ul>
 
 <pre class = 'prettyprint lang-r'># relearn the models with 3 to 8 states

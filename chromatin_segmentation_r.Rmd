@@ -377,8 +377,6 @@ Other tracks can be added to the plot to make it more informative. Here, we used
 
 ---
 
-Those can be put together in one plot using `plotTracks`
-
 ```{r other_tracks, cache=TRUE}
 # ideogram track
 itrack <- IdeogramTrack(genome = 'hg38', chromosome = 11)
@@ -392,6 +390,8 @@ grtrack <- BiomartGeneRegionTrack(genom = 'hg38',
                                   name = 'ACAT1')
 ```
 ---
+
+Those can be put together in one plot using `plotTracks`
 
 ```{r plot_all, eval=FALSE}
 # put all tracks together
@@ -467,8 +467,8 @@ get_frequency(segment(obj),
 ## Comparing multiple models
 
 - To choose the model that best fits the data, one can learn multiple models with different parameters.
-- In this example, we will be calling `learn_model` several times using `lapply` with the same inputs except the number of states (`numstates`).
-- The output would be a list of `segmentation` objects. `segmenter` contain functions to do basic comparison between the models.
+- In this example, we will be calling `learn_model` several times using `lapply` with the same inputs except for the number of states (`numstates`).
+- The output would be a list of `segmentation` objects. `segmenter` contains functions to do a basic comparison between the models.
 
 ```{r loop, eval=FALSE}
 # relearn the models with 3 to 8 states
