@@ -331,11 +331,11 @@ chromosome 11 and resized it to 10kb around the transcription start site.
 
 ```{r annotations, cache=TRUE}
 # load libraries
-library(TxDb.Hsapiens.UCSC.hg18.knownGene)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 library(GenomicRanges)
 
 # gene gene coordinates
-txdb <- TxDb.Hsapiens.UCSC.hg18.knownGene
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 gen <- genes(txdb, filter = list(gene_id = 38))
 
 # extend genomic region
@@ -512,7 +512,8 @@ compare_models(objs,
                xlab = 'Number of states',
                ylab = 'State Correlation')
 
-compare_models(objs, type = 'likelihood',
+compare_models(objs,
+               type = 'likelihood',
                plot = TRUE,
                xlab = 'Number of states',
                ylab = 'Model Likelihood')
